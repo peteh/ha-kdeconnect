@@ -29,7 +29,7 @@ class AbstractMqttPlugin():
         self._konnect_device = konnect_device
 
     def _generate_unique_id(self, entity_id: str) -> str:
-        return f"kdeconnect_{self._konnect_device.device_id}_{entity_id}"
+        return f"kdeconnect_{self._konnect_device.host_device_id}_{self._konnect_device.device_id}_{entity_id}"
 
 class MqttPluginFindDevice(AbstractMqttPlugin):
 
@@ -116,7 +116,7 @@ class MqttPluginBattery(AbstractMqttPlugin):
         self._battery_sensor.set_state(charge)
 
 class MqttPluginConnectivity(AbstractMqttPlugin):
-    """Plugin that shows Battery State and Charging State
+    """Plugin that shows Connectivity of the cellular network
     """
 
     def __init__(self, mqtt_settings: Settings.MQTT, device_info: DeviceInfo, konnect_device: KDEConnectDevice) -> None:
@@ -144,7 +144,7 @@ class MqttPluginConnectivity(AbstractMqttPlugin):
         self._network_strength_sensor.set_state(network_strength)
 
 class MqttPluginRemoteSystemVolume(AbstractMqttPlugin):
-    """Plugin that shows Battery State and Charging State
+    """Plugin to view and control system volume. 
     """
     MAX_UINT16 = 0xFFFF
 
