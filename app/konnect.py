@@ -1,7 +1,9 @@
+import logging
 from PyQt5.QtDBus import QDBusInterface, QDBusConnection, QDBusReply
 from PyQt5.QtCore import QObject, pyqtSlot
 from typing import Callable
 import json
+
 class DBusWrapper(QObject):
 
     def __init__(self, service: str, path: str, interface_name: str = "") -> None:
@@ -280,15 +282,45 @@ class KDEConnectPluginMPRISRemote(KDEConnectPlugin, QObject):
         self._dbus.handle_signal("propertiesChanged", self._properties_changed)
 
     @property
+    def album(self) -> str:
+        return self._dbus.property("album")
+    
+    @property
+    def artist(self) -> str:
+        return self._dbus.property("artist")
+    
+    @property
+    def can_seek(self) -> str:
+        return self._dbus.property("canSeek")
+    
+    @property
+    def is_playing(self) -> bool:
+        return self._dbus.property("isPlaying")
+    
+    @property
+    def player(self) -> int:
+        return self._dbus.property("player")
+    
+    @property
     def player_list(self) -> list[str]:
         return self._dbus.property("playerList")
-
-    @property
-    def is_charging(self) -> bool:
-        return self._dbus.property("isCharging")
+    
+    def request_player_list(self):
+        """Request the player list from the remote device. 
+        """
+        self._dbus.call("requestPlayerList")
 
     @pyqtSlot()
     def _properties_changed(self):
+        logging.debug("Properties changed in MPRISRemote plugin")
+        logging.debug(f"Playing: {self.is_playing}")
+        logging.debug(f"Player: {self.player}")
+        logging.debug(f"Album: {self.album}")
+        logging.debug(f"Artist: {self.artist}") 
+        logging.debug(f"Can seek: {self.can_seek}") 
+        # player list
+        logging.debug(f"Player list: {self.player_list}")
+        
         for handler in self._changed_handlers:
             handler()
 

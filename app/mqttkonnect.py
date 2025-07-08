@@ -1,5 +1,5 @@
 from ha_mqtt_discoverable import Settings
-from ha_mqtt_discoverable.sensors import Button, ButtonInfo, DeviceInfo, BinarySensorInfo, BinarySensor, SensorInfo, Sensor, SwitchInfo, Switch, NumberInfo, Number
+from ha_mqtt_discoverable.sensors import Button, ButtonInfo, DeviceInfo, BinarySensorInfo, BinarySensor, SensorInfo, Sensor, SwitchInfo, Switch, NumberInfo, Number, Text, TextInfo
 from paho.mqtt.client import Client, MQTTMessage
 
 from konnect import KDEConnectDevice, KDEConnectDaemon
@@ -91,8 +91,11 @@ class MqttPluginBattery(AbstractMqttPlugin):
     def __init__(self, mqtt_settings: Settings.MQTT, device_info: DeviceInfo, konnect_device: KDEConnectDevice) -> None:
         super().__init__(mqtt_settings, device_info, konnect_device)
         self._plugin = self._konnect_device.get_plugin_battery()
-        self._create_entities()
-        self._plugin.notify_refreshed(self._update_battery)
+        
+        # we don't add the entities if we don't have a battery (soc = -1)
+        if self._plugin.charge != -1:
+            self._create_entities()
+            self._plugin.notify_refreshed(self._update_battery)
 
     def _create_entities(self):
         charging_sensor_info = BinarySensorInfo(name="Charging", device=self._device_info, unique_id=self._generate_unique_id("snsr-charging"), device_class="battery_charging")
@@ -114,6 +117,79 @@ class MqttPluginBattery(AbstractMqttPlugin):
         else:
             self._charging_sensor.off()
         self._battery_sensor.set_state(charge)
+
+class MqttPluginMprisRemote(AbstractMqttPlugin):
+    """Plugin that shows Mpris Remote
+    """
+
+    def __init__(self, mqtt_settings: Settings.MQTT, device_info: DeviceInfo, konnect_device: KDEConnectDevice) -> None:
+        super().__init__(mqtt_settings, device_info, konnect_device)
+        self._plugin = self._konnect_device.get_plugin_mpris_remote()
+        
+        # we don't add the entities if we don't have a battery (soc = -1)
+        
+        self._is_playing = None
+        self._player = None
+        self._album = None
+        self._artist = None
+        
+        self._create_entities()
+        self._plugin.notify_properties_changed(self._properties_changed)
+
+    def _create_entities(self):
+        is_playing_sensor_info = BinarySensorInfo(name="Playing", device=self._device_info, unique_id=self._generate_unique_id("snsr-playing"))#, device_class="battery_charging")
+        is_playing_sensor_settings = Settings(mqtt=self._mqtt_settings, entity=is_playing_sensor_info)
+        self._is_playing_sensor = BinarySensor(is_playing_sensor_settings)
+        self._is_playing_sensor.write_config()
+        
+        player_sensor_info = TextInfo(name="Player", device=self._device_info, unique_id=self._generate_unique_id("snsr-player"))
+        player_sensor_settings = Settings(mqtt=self._mqtt_settings, entity=player_sensor_info)
+        self._player_sensor = Text(player_sensor_settings, self._player_text_callback)
+        self._player_sensor.write_config()
+        
+        artist_sensor_info = TextInfo(name="Player Artist", device=self._device_info, unique_id=self._generate_unique_id("snsr-player-artist"))#, device_class="album")
+        artist_sensor_settings = Settings(mqtt=self._mqtt_settings, entity=artist_sensor_info)
+        self._artist_sensor = Text(artist_sensor_settings, self._artist_text_callback)
+        
+        album_sensor_info = TextInfo(name="Player Album", device=self._device_info, unique_id=self._generate_unique_id("snsr-player-album"))#, device_class="album")
+        album_sensor_settings = Settings(mqtt=self._mqtt_settings, entity=album_sensor_info)
+        self._album_sensor = Text(album_sensor_settings, self._album_text_callback)
+
+        # write initial state
+        self._properties_changed()
+    
+    def _player_text_callback(self, client: Client, user_data, message: MQTTMessage):
+        # TODO: do we need to do sth? 
+        pass
+    
+    def _album_text_callback(self, client: Client, user_data, message: MQTTMessage):
+        # TODO: do we need to do sth? 
+        pass
+    
+    def _artist_text_callback(self, client: Client, user_data, message: MQTTMessage):
+        # TODO: do we need to do sth? 
+        pass
+
+    def _properties_changed(self):
+        #player_list = self._plugin.request_player_list()
+        #logging.debug(f"Player list: {player_list}")
+        if self._is_playing != self._plugin.is_playing:
+            if self._plugin.is_playing:
+                self._is_playing_sensor.on()
+            else:
+                self._is_playing_sensor.off()
+            self._is_playing = self._plugin.is_playing
+        if self._player != self._plugin.player:
+            self._player_sensor.set_text(self._plugin.player)
+            self._player = self._plugin.player
+        
+        if self._album != self._plugin.album:
+            self._album_sensor.set_text(self._plugin.album)
+            self._album = self._plugin.album
+        
+        if self._artist != self._plugin.artist:
+            self._artist_sensor.set_text(self._plugin.artist)
+            self._artist = self._plugin.artist
 
 class MqttPluginConnectivity(AbstractMqttPlugin):
     """Plugin that shows Connectivity of the cellular network
@@ -270,6 +346,12 @@ class MqttDevice:
         if systemvolume is not None:
             print("adding system volume")
             plugin = MqttPluginRemoteSystemVolume(self._mqtt_settings, self._device_info, self._konnect_device)
+            self._plugins.append(plugin)
+        
+        mpris_remote = self._konnect_device.get_plugin_mpris_remote()
+        if mpris_remote is not None:
+            print("adding mpris remote")
+            plugin = MqttPluginMprisRemote(self._mqtt_settings, self._device_info, self._konnect_device)
             self._plugins.append(plugin)
         
         
